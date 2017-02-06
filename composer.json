@@ -1,0 +1,24 @@
+{
+    "name": "ampersa/pushover",
+    "description": "Library for communicating with Pushover API fluently",
+    "version": "0.1",
+    "licence": "MIT",
+    "authors" : [
+        {
+            "name": "Adam Prickett (Ampersa)",
+            "email": "adam.prickett@ampersa.co.uk"
+        }
+    ],
+    "require": {
+        "php": ">=5.4",
+        "guzzlehttp/guzzle": "6.*"
+    },
+    "require-dev": {
+
+    },
+    "autoload": {
+        "psr-4": {
+            "Ampersa\\Pushover\\": "src/"
+        }
+    }
+}
