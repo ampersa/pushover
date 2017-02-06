@@ -1,18 +1,29 @@
-# Pushover API Client (for Laravel 5)
+# Pushover API Client
 
 Version 0.1
 
-Installation (Laravel 5):
+Example:
 ```
-composer require ampersa/pushover
+$client = new Pushover;
+$response = $client->title('Testing')
+                    ->message('Just a quick test of <b>Ampersa\Pushover</b>')
+                    ->sound('cashregister')
+                    ->priority(Pushover::PRIORITY_EMERGENCY)
+                    ->retry(30)
+                    ->expires(600)
+                    ->html(true)
+                    ->url('https://www.google.com', 'Google')
+                    ->user('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+                    ->send();
+
+var_export($response);
 ```
 
-in config/app.php, add the following line to the service providers array
+will result in a truth-y response:
 ```
-Ampersa\Pushover\PushoverServiceProvider::class,
-```
-
-and add the following to the aliases array:
-```
-'Pushover' => Ampersa\Pushover\Facades\Pushover::class
+stdClass::__set_state(array(
+   'receipt' => '000000000000000000000000000000',
+   'status' => 1,
+   'request' => 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+))
 ```
