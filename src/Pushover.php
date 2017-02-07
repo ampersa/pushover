@@ -1,4 +1,11 @@
 <?php
+/**
+ * Pushover Client
+ *
+ * Copyright (c) Ampersa Ltd. 2017
+ *
+ * Please see LICENSE file for copyright and licence information
+ */
 
 namespace Ampersa\Pushover;
 
@@ -24,6 +31,7 @@ class Pushover
 	/** @var GuzzleHttp\Client HTTP Client for sending requests */
 	protected $client;
 
+	/** @var array Array of parameters to be sent to the API endpoint */
 	protected $params = [
 		'html' => 0,
 		'priority' => 0,
@@ -32,11 +40,22 @@ class Pushover
 		'sound' => 'pushover',
 	];
 
+	/** @var array Rate limit details recorded from header of last request */
 	protected $rateLimit = [];
 	
-	public function __construct()
+	/**
+	 * Construct and setup Client
+	 * Automatically retrieves token from PUSHOVER_APP_KEY, if exists
+	 * @param string|null $token App token to send messages with
+	 */
+	public function __construct($token = null)
 	{
-		$this->params['token'] = env('PUSHOVER_APP_KEY');
+		$this->params['token'] = getenv('PUSHOVER_APP_KEY');
+		
+		if (!empty($token)) {
+			$this->params['token'] = $token;
+		}
+
 		$this->client = new Client;
 	}
 
@@ -192,11 +211,12 @@ class Pushover
 			$this->params['user'] = $userKey;
 		}
 
-		// Validate the message
+		// Check a token is provided
 		if (empty($this->params['token'])) {
 			throw new PushoverException('No application key was provided');
 		}
 
+		// Check a message is provided and not empty
 		if (empty($this->params['message'])) {
 			throw new PushoverException('No message was provided to send');
 		}
@@ -206,43 +226,30 @@ class Pushover
 			throw new PushoverException('Both retry and expires MUST be set to use Emergency priority');
 		}
 
+		// Check title is less than 251 characters if provided
 		if (isset($this->params['title']) and strlen($this->params['title']) > 250) {
 			throw new PushoverException('Title must be 250 characters or less');
 		}
 
-		if (isset($this->params['url']) and strlen($this->params['message']) > 1024) {
+		// Check message is less than 1025 characters if provided
+		if (isset($this->params['message']) and strlen($this->params['message']) > 1024) {
 			throw new PushoverException('Message must be 1024 characters or less');
 		}
 
+		// Check url is less than 513 characters if provided
 		if (isset($this->params['url']) and strlen($this->params['url']) > 512) {
 			throw new PushoverException('Supplementary URL must be 512 characters or less');
 		}
 
-		if (isset($this->params['url']) and strlen($this->params['url_title']) > 100) {
+		// Check url_title is less than 101 characters if provided
+		if (isset($this->params['url_title']) and strlen($this->params['url_title']) > 100) {
 			throw new PushoverException('Supplementary URL Title must be 100 characters or less');
 		}
 
-		try {
-			$resource = $this->client->request('POST', self::API_MESSAGES_ENDPOINT, [
-				'form_params' => $this->params,
-			]);
-		} catch (GuzzleHttp\Exception\ClientException $e) {
-			// 429 Codes refer Rate-Limiting
-			if ($resource->getStatusCode() == 429) {
-				throw new PushoverApiException(sprintf('Pushover rate-limit reached - will reset on %s', date('d/m/Y', $resource->getHeader('X-Limit-App-Reset'))));
-			}
 
-			$response = json_decode((string) $resource->getBody());
-
-			// Any other error, pass the errors array through
-			throw new PushoverApiException(implode(', ', $response->errors));
-		} catch (\GuzzleHttp\Exception\ServerException $e) {
-			throw new PushoverApiException('Received a 5XX error from Pushover. Try again in 5 seconds.');
-		} catch (\GuzzleHttp\Exception\ConnectException $e) {
-			throw new PushoverApiException('Could not connect to Pushover API.');
-		} catch (\Exception $e) {
-			throw new PushoverApiException($e->getMessage());
-		}
+		$resource = $this->api('POST', self::API_MESSAGES_ENDPOINT, [
+			'form_params' => $this->params,
+		]);
 
 		$response = json_decode((string) $resource->getBody());
 
@@ -276,29 +283,11 @@ class Pushover
 			throw new PushoverException('Receipt string in incorrect format.');
 		}
 
-		try {
-			$resource = $this->client->request('GET', sprintf(self::API_RECEIPT_ENDPOINT, $receipt), [
-				'query' => [
-					'token' => $this->params['token'],
-				],
-			]);
-		} catch (GuzzleHttp\Exception\ClientException $e) {
-			// 429 Codes refer Rate-Limiting
-			if ($resource->getStatusCode() == 429) {
-				throw new PushoverApiException(sprintf('Pushover rate-limit reached - will reset on %s', date('d/m/Y', $resource->getHeader('X-Limit-App-Reset'))));
-			}
-
-			$response = json_decode((string) $resource->getBody());
-
-			// Any other error, pass the errors array through
-			throw new PushoverApiException(implode(', ', $response->errors));
-		} catch (\GuzzleHttp\Exception\ServerException $e) {
-			throw new PushoverApiException('Received a 5XX error from Pushover. Try again in 5 seconds.');
-		} catch (\GuzzleHttp\Exception\ConnectException $e) {
-			throw new PushoverApiException('Could not connect to Pushover API.');
-		} catch (\Exception $e) {
-			throw new PushoverApiException($e->getMessage());
-		}
+		$resource = $this->api('GET', sprintf(self::API_RECEIPT_ENDPOINT, $receipt), [
+			'query' => [
+				'token' => $this->params['token'],
+			],
+		]);
 
 		$response = json_decode((string) $resource->getBody());
 
@@ -322,29 +311,11 @@ class Pushover
 			throw new PushoverException('Receipt string in incorrect format.');
 		}
 
-		try {
-			$resource = $this->client->request('POST', sprintf(self::API_CANCEL_ENDPOINT, $receipt), [
-				'form_params' => [
-					'token' => $this->params['token'],
-				],
-			]);
-		} catch (GuzzleHttp\Exception\ClientException $e) {
-			// 429 Codes refer Rate-Limiting
-			if ($resource->getStatusCode() == 429) {
-				throw new PushoverApiException(sprintf('Pushover rate-limit reached - will reset on %s', date('d/m/Y', $resource->getHeader('X-Limit-App-Reset'))));
-			}
-
-			$response = json_decode((string) $resource->getBody());
-
-			// Any other error, pass the errors array through
-			throw new PushoverApiException(implode(', ', $response->errors));
-		} catch (\GuzzleHttp\Exception\ServerException $e) {
-			throw new PushoverApiException('Received a 5XX error from Pushover. Try again in 5 seconds.');
-		} catch (\GuzzleHttp\Exception\ConnectException $e) {
-			throw new PushoverApiException('Could not connect to Pushover API.');
-		} catch (\Exception $e) {
-			throw new PushoverApiException($e->getMessage());
-		}
+		$resource = $this->api('POST', sprintf(self::API_CANCEL_ENDPOINT, $receipt), [
+			'form_params' => [
+				'token' => $this->params['token'],
+			],
+		]);
 
 		$response = json_decode((string) $resource->getBody());
 
@@ -369,5 +340,39 @@ class Pushover
 		$this->params['token'] = $key;
 
 		return $this;
+	}
+
+	/**
+	 * Make an API connection, handle exceptions and return response
+	 * @param  string $method   HTTP Method
+	 * @param  string $endpoint API Endpoint
+	 * @param  array  $params   Array of params
+	 * @return object			JSON response object
+	 */
+	protected function api($method, $endpoint, $params)
+	{
+		try {
+			$resource = $this->client->request($method, $endpoint, $params);
+		} catch (GuzzleHttp\Exception\ClientException $e) {
+			// 429 Codes refer Rate-Limiting
+			if ($resource->getStatusCode() == 429) {
+				throw new PushoverApiException(sprintf('Pushover rate-limit reached - will reset on %s', date('d/m/Y', $resource->getHeader('X-Limit-App-Reset'))));
+			}
+
+			$response = json_decode((string) $resource->getBody());
+
+			// Any other error, pass the errors array through
+			throw new PushoverApiException(implode(', ', $response->errors));
+		} catch (\GuzzleHttp\Exception\ServerException $e) {
+			throw new PushoverApiException('Received a 5XX error from Pushover. Try again in 5 seconds.');
+		} catch (\GuzzleHttp\Exception\ConnectException $e) {
+			throw new PushoverApiException('Could not connect to Pushover API.');
+		} catch (\Exception $e) {
+			throw new PushoverApiException($e->getMessage());
+		}
+
+		$response = json_decode((string) $resource->getBody());
+
+		return $response;
 	}
 }

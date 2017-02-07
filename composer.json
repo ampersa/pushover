@@ -1,7 +1,7 @@
 {
     "name": "ampersa/pushover",
     "description": "Library for communicating with Pushover API fluently",
-    "version": "0.1",
+    "version": "0.2",
     "license": "MIT",
     "authors" : [
         {
